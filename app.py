@@ -3,12 +3,16 @@ from flask_cors import CORS
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 import requests
 import os
-import datetime  # <-- ৭ দিনের সেশন সেট করার জন্য
+import datetime
 
 # --- পরিবেশ (Environment) থেকে ভেরিয়েবল লোড করা ---
 API_KEY = os.environ.get('API_KEY')
-# --- নতুন: সেশনের জন্য একটি গোপন কী (Secret Key) লাগবে ---
 SECRET_KEY = os.environ.get('SECRET_KEY')
+
+# --- নতুন: ইউজারনেম ও পাসওয়ার্ড এখন পরিবেশ থেকে লোড হবে ---
+# যদি সেট করা না থাকে, তবে ডিফল্ট 'admin'/'12345' কাজ করবে
+ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'admin')
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', '12345')
 
 if not API_KEY:
     raise ValueError("API_KEY not found. Please set the API_KEY environment variable.")
@@ -29,54 +33,46 @@ You must add the following sections, clearly formatted with markdown:
 5.  **OUTPUT FORMAT**: Specify *exactly* how the output should be structured. (e.g., "Respond in markdown," "Provide a JSON object with keys 'title' and 'summary'," "Write a single python function with docstrings," "A 4-column markdown table.")
 Respond *only* with the new, enhanced prompt. Do not include any pre-amble or post-amble like 'Here is your enhanced prompt:'. Do not just rephrase the user's prompt; you must *expand* it into this structured format."""
 
-
 # --- Flask অ্যাপ এবং Flask-Login সেটআপ ---
 app = Flask(__name__)
 app.config['SECRET_KEY'] = SECRET_KEY
-# --- নতুন: সেশনের সময় ৭ দিন সেট করা হলো ---
 app.config['PERMANENT_SESSION_LIFETIME'] = datetime.timedelta(days=7)
 CORS(app)
 
 login_manager = LoginManager()
 login_manager.init_app(app)
-login_manager.login_view = 'login'  # লগইন করা না থাকলে এই পেজে পাঠাবে
-login_manager.login_message = 'Please log in to access this page.'
+login_manager.login_view = 'login'
+login_manager.login_message = 'Invalid username or password' # <-- মেসেজ পরিবর্তন করা হলো
 
-# --- ইউজার মডেল (আমরা একটি হার্ডকোডেড ইউজার ব্যবহার করছি) ---
+# --- ইউজার মডেল ---
 class User(UserMixin):
+    # ইউজার অবজেক্টের শুধু একটি আইডি থাকলেই চলে
     def __init__(self, id):
         self.id = id
-        self.username = 'admin'  # <-- আপনার ইউজারনেম
-        self.password = '12345'  # <-- আপনার পাসওয়ার্ড
 
-# একটিমাত্র ইউজার (আইডি '1') তৈরি করা হলো
-users = {
-    "1": User("1")
-}
-
+# একটিমাত্র ইউজার (আইডি '1') লোড করার ফাংশন
 @login_manager.user_loader
 def load_user(user_id):
-    return users.get(user_id)
+    return User(user_id)
 
 # --- নতুন রুট: লগইন পেজ ---
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
-        return redirect(url_for('home'))  # লগইন করা থাকলে হোম পেজে পাঠাবে
+        return redirect(url_for('home'))
 
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
         
-        # ইউজারনেম ও পাসওয়ার্ড চেক করা
-        user = users.get("1")
-        if user and username == user.username and password == user.password:
-            # --- লগইন সফল হলে ৭ দিনের জন্য সেশন সেট করা হলো ---
+        # --- নতুন: ইউজারনেম ও পাসওয়ার্ড পরিবেশ থেকে চেক করা হচ্ছে ---
+        if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+            user = User("1") # '1' হলো এই ইউজারের আইডি
             login_user(user, remember=True)
-            session.permanent = True  # এটি Flask-কে ৭ দিনের সেশন ব্যবহার করতে বলে
+            session.permanent = True
             return redirect(url_for('home'))
         else:
-            flash('Invalid username or password')  # login.html-এ মেসেজ দেখাবে
+            flash('Invalid username or password')
 
     return render_template('login.html')
 
@@ -89,13 +85,13 @@ def logout():
 
 # --- হোম পেজ (PromptCraft) ---
 @app.route('/')
-@login_required  # <-- এটি নিশ্চিত করে যে লগইন ছাড়া হোম পেজ দেখা যাবে না
+@login_required
 def home():
     return render_template('index.html')
 
 # --- API রুট (আগের মতোই) ---
 @app.route('/enhance', methods=['POST'])
-@login_required  # <-- এটি নিশ্চিত করে যে লগইন ছাড়া API ব্যবহার করা যাবে না
+@login_required
 def enhance_prompt():
     try:
         data = request.json
@@ -124,4 +120,4 @@ def enhance_prompt():
 # --- সার্ভার রান (আগের মতোই) ---
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    app.run(port=port, debug=False, host='0.0.0.0') # <-- debug=True কে False করা হলো
+    app.run(port=port, debug=False, host='0.0.0.0')
