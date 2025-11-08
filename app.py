@@ -9,15 +9,20 @@ import datetime
 API_KEY = os.environ.get('API_KEY')
 SECRET_KEY = os.environ.get('SECRET_KEY')
 
-# --- নতুন: ইউজারনেম ও পাসওয়ার্ড এখন পরিবেশ থেকে লোড হবে ---
-# যদি সেট করা না থাকে, তবে ডিফল্ট 'admin'/'12345' কাজ করবে
-ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'admin')
-ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', '12345')
+# --- নতুন: ইউজারনেম ও পাসওয়ার্ড এখন পরিবেশ থেকে লোড হবে (কোনো ডিফল্ট নেই) ---
+ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME')
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD')
 
+# --- সব কী (Key) চেক করা হচ্ছে ---
 if not API_KEY:
     raise ValueError("API_KEY not found. Please set the API_KEY environment variable.")
 if not SECRET_KEY:
     raise ValueError("SECRET_KEY not found. Please set the SECRET_KEY environment variable.")
+if not ADMIN_USERNAME:
+    raise ValueError("ADMIN_USERNAME not found. Please set the ADMIN_USERNAME environment variable.")
+if not ADMIN_PASSWORD:
+    raise ValueError("ADMIN_PASSWORD not found. Please set the ADMIN_PASSWORD environment variable.")
+
 
 # --- API URL এবং সিস্টেম প্রম্পট (আগের মতোই) ---
 GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key={API_KEY}"
@@ -42,18 +47,18 @@ CORS(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
-login_manager.login_message = 'Invalid username or password' # <-- মেসেজ পরিবর্তন করা হলো
+# --- পরিবর্তন: লগইন মেসেজটি ঠিক করা হয়েছে ---
+login_manager.login_message = 'Please log in to access this page.'
+# --- পরিবর্তন শেষ ---
 
 # --- ইউজার মডেল ---
 class User(UserMixin):
-    # ইউজার অবজেক্টের শুধু একটি আইডি থাকলেই চলে
     def __init__(self, id):
         self.id = id
 
-# একটিমাত্র ইউজার (আইডি '1') লোড করার ফাংশন
 @login_manager.user_loader
 def load_user(user_id):
-    return User(user_id)
+    return User(user_id) # '1' আইডি-ধারী ইউজারকে লোড করে
 
 # --- নতুন রুট: লগইন পেজ ---
 @app.route('/login', methods=['GET', 'POST'])
@@ -65,14 +70,14 @@ def login():
         username = request.form['username']
         password = request.form['password']
         
-        # --- নতুন: ইউজারনেম ও পাসওয়ার্ড পরিবেশ থেকে চেক করা হচ্ছে ---
+        # --- পরিবর্তন: পরিবেশ থেকে পাওয়া ইউজারনেম ও পাসওয়ার্ড চেক করা হচ্ছে ---
         if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
-            user = User("1") # '1' হলো এই ইউজারের আইডি
+            user = User("1") # ইউজার অবজেক্ট তৈরি করা হলো
             login_user(user, remember=True)
             session.permanent = True
             return redirect(url_for('home'))
         else:
-            flash('Invalid username or password')
+            flash('Invalid username or password') # <-- শুধু ভুল পাসওয়ার্ড দিলেই এটি দেখাবে
 
     return render_template('login.html')
 
