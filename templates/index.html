@@ -46,12 +46,19 @@
 <body class="bg-gray-900 text-gray-100 min-h-screen p-4 sm:p-8 flex items-center justify-center">
 
     <div class="w-full max-w-6xl mx-auto">
-        <header class="text-center mb-8">
+        <header class="text-center mb-8 relative">
             <h1
                 class="text-4xl sm:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-indigo-500 to-pink-500">
                 PromptCraft
             </h1>
             <p class="text-lg text-gray-400 mt-2">Transform your simple ideas into powerful AI prompts.</p>
+
+            <div class="absolute top-0 right-0 pt-1 pr-1 sm:pt-0 sm:pr-0">
+                <a href="/logout"
+                    class="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-200 text-sm">
+                    Logout
+                </a>
+            </div>
         </header>
 
         <main class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -112,8 +119,7 @@
         const messageBox = document.getElementById('messageBox');
 
         // --- API Configuration ---
-        // *** THIS IS THE CORRECTED LINE ***
-        // It now calls the relative path, not localhost
+        // This relative URL is correct for production
         const apiUrl = `/enhance`;
 
         // --- Event Listeners ---
@@ -134,7 +140,6 @@
             showMessage('', 'clear'); // Clear previous messages
 
             try {
-                // This is the data we send to our Python server
                 const payload = {
                     user_prompt: userPrompt
                 };
@@ -145,14 +150,20 @@
                     body: JSON.stringify(payload)
                 });
 
+                // --- Check for login redirect ---
+                // If we are logged out, the server will try to redirect to /login
+                if (response.redirected) {
+                    // Force the browser to follow the redirect to the login page
+                    window.location.href = response.url;
+                    return;
+                }
+
                 if (!response.ok) {
                     const errorResult = await response.json();
-                    // Show the specific error from our Python server or Google
                     throw new Error(errorResult.error || `Server error: ${response.status}`);
                 }
 
                 const result = await response.json();
-                // Get the prompt from our Python server's response
                 const enhancedPrompt = result.enhanced_prompt;
 
                 if (enhancedPrompt) {
@@ -164,8 +175,12 @@
 
             } catch (error) {
                 console.error('Fetch Error:', error);
-                // Display the error message in the red box
-                showMessage(`An error occurred: ${error.message}. Please try again.`, 'error');
+                // Check if the error is because we're logged out
+                if (error.message.includes('redirected')) {
+                    window.location.href = '/login';
+                } else {
+                    showMessage(`An error occurred: ${error.message}. Please try again.`, 'error');
+                }
             } finally {
                 setLoadingState(false);
             }
@@ -184,7 +199,6 @@
 
         /**
          * Sets the loading state for the UI
-         * @param {boolean} isLoading - Whether to show or hide the loading state
          */
         function setLoadingState(isLoading) {
             if (isLoading) {
@@ -209,12 +223,11 @@
                 return;
             }
 
-            // Create a temporary textarea to hold the text
             const tempTextArea = document.createElement('textarea');
             tempTextArea.value = textToCopy;
             document.body.appendChild(tempTextArea);
             tempTextArea.select();
-            tempTextArea.setSelectionRange(0, 99999); // For mobile devices
+            tempTextArea.setSelectionRange(0, 99999);
 
             try {
                 document.execCommand('copy');
@@ -233,8 +246,6 @@
 
         /**
          * Displays a message to the user
-         * @param {string} message - The text to display
-         * @param {'success' | 'error' | 'clear'} type - The type of message
          */
         function showMessage(message, type) {
             messageBox.classList.remove('hidden', 'bg-red-500', 'bg-green-500', 'text-white');
