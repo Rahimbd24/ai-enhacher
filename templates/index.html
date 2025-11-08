@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PromptCraft - AI Prompt Enhancer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Apply Inter font */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* Custom scrollbar for a more modern look */
+        textarea::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        textarea::-webkit-scrollbar-track {
+            background: #1f2937;
+            /* gray-800 */
+        }
+
+        textarea::-webkit-scrollbar-thumb {
+            background: #4b5563;
+            /* gray-600 */
+            border-radius: 4px;
+        }
+
+        textarea::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
+            /* gray-500 */
+        }
+
+        /* Hide the spinner by default */
+        #spinner {
+            display: none;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-900 text-gray-100 min-h-screen p-4 sm:p-8 flex items-center justify-center">
+
+    <div class="w-full max-w-6xl mx-auto">
+        <header class="text-center mb-8">
+            <h1
+                class="text-4xl sm:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-indigo-500 to-pink-500">
+                PromptCraft
+            </h1>
+            <p class="text-lg text-gray-400 mt-2">Transform your simple ideas into powerful AI prompts.</p>
+        </header>
+
+        <main class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+            <div class="bg-gray-800 p-6 rounded-xl shadow-2xl flex flex-col">
+                <div class="flex justify-between items-center mb-3">
+                    <label for="simplePrompt" class="text-lg font-semibold text-gray-200">Your Simple Idea</label>
+                    <button id="clearButton"
+                        class="text-sm bg-gray-700 hover:bg-gray-600 text-gray-300 py-1.5 px-3 rounded-md transition duration-200">
+                        Clear
+                    </button>
+                </div>
+                <textarea id="simplePrompt" rows="15"
+                    class="w-full p-4 bg-gray-900 border border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-100 placeholder-gray-500 text-base resize-none"
+                    placeholder="e.g., 'write an email to my boss asking for a raise' or 'analyze bitcoin price trend'"></textarea>
+
+                <button id="enhanceButton"
+                    class="mt-4 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg transition duration-300 ease-in-out flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <svg id="spinner" class="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                        xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4">
+                        </circle>
+                        <path class="opacity-75" fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                        </path>
+                    </svg>
+                    <span id="buttonText">Enhance Prompt</span>
+                </button>
+            </div>
+
+            <div class="bg-gray-800 p-6 rounded-xl shadow-2xl flex flex-col">
+                <div class="flex justify-between items-center mb-3">
+                    <label for="outputPrompt" class="text-lg font-semibold text-gray-200">Your Powerful Prompt</label>
+                    <button id="copyButton"
+                        class="text-sm bg-gray-700 hover:bg-gray-600 text-gray-300 py-1.5 px-3 rounded-md transition duration-200">
+                        Copy
+                    </button>
+                </div>
+                <textarea id="outputPrompt" rows="15" readonly
+                    class="w-full p-4 bg-gray-900 border border-gray-700 rounded-lg text-gray-100 text-base resize-none cursor-text"
+                    placeholder="Your enhanced prompt will appear here..."></textarea>
+            </div>
+        </main>
+
+        <div id="messageBox" class="hidden w-full max-w-md mx-auto mt-6 p-4 rounded-lg text-center font-medium">
+        </div>
+    </div>
+
+    <script>
+        // --- DOM Elements ---
+        const simplePrompt = document.getElementById('simplePrompt');
+        const outputPrompt = document.getElementById('outputPrompt');
+        const enhanceButton = document.getElementById('enhanceButton');
+        const buttonText = document.getElementById('buttonText');
+        const spinner = document.getElementById('spinner');
+        const copyButton = document.getElementById('copyButton');
+        const clearButton = document.getElementById('clearButton');
+        const messageBox = document.getElementById('messageBox');
+
+        // --- API Configuration ---
+        // We call our OWN Python backend server, not Google
+        const apiUrl = `http://localhost:5000/enhance`;
+
+        // --- Event Listeners ---
+        enhanceButton.addEventListener('click', handleEnhanceClick);
+        copyButton.addEventListener('click', copyToClipboard);
+        clearButton.addEventListener('click', handleClearClick);
+
+        // --- Main Function ---
+        async function handleEnhanceClick() {
+            const userPrompt = simplePrompt.value;
+
+            if (!userPrompt.trim()) {
+                showMessage('Please enter a simple prompt in the box on the left.', 'error');
+                return;
+            }
+
+            setLoadingState(true);
+            showMessage('', 'clear'); // Clear previous messages
+
+            try {
+                // This is the data we send to our Python server
+                const payload = {
+                    user_prompt: userPrompt
+                };
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const errorResult = await response.json();
+                    // Show the specific error from our Python server or Google
+                    throw new Error(errorResult.error || `Server error: ${response.status}`);
+                }
+
+                const result = await response.json();
+                // Get the prompt from our Python server's response
+                const enhancedPrompt = result.enhanced_prompt;
+
+                if (enhancedPrompt) {
+                    outputPrompt.value = enhancedPrompt.trim();
+                } else {
+                    console.error('API Response Error:', result);
+                    showMessage('Failed to enhance prompt. The model returned an unexpected response.', 'error');
+                }
+
+            } catch (error) {
+                console.error('Fetch Error:', error);
+                // Display the error message in the red box
+                showMessage(`An error occurred: ${error.message}. Please try again.`, 'error');
+            } finally {
+                setLoadingState(false);
+            }
+        }
+
+        /**
+         * Clears both input and output text areas
+         */
+        function handleClearClick() {
+            simplePrompt.value = '';
+            outputPrompt.value = '';
+            showMessage('Inputs cleared.', 'success');
+        }
+
+        // --- Utility Functions ---
+
+        /**
+         * Sets the loading state for the UI
+         * @param {boolean} isLoading - Whether to show or hide the loading state
+         */
+        function setLoadingState(isLoading) {
+            if (isLoading) {
+                enhanceButton.disabled = true;
+                buttonText.textContent = 'Enhancing...';
+                spinner.style.display = 'block';
+            } else {
+                enhanceButton.disabled = false;
+                buttonText.textContent = 'Enhance Prompt';
+                spinner.style.display = 'none';
+            }
+        }
+
+        /**
+         * Copies text from the output prompt to the clipboard
+         */
+        function copyToClipboard() {
+            const textToCopy = outputPrompt.value;
+
+            if (!textToCopy) {
+                showMessage('Nothing to copy!', 'error');
+                return;
+            }
+
+            // Create a temporary textarea to hold the text
+            const tempTextArea = document.createElement('textarea');
+            tempTextArea.value = textToCopy;
+            document.body.appendChild(tempTextArea);
+            tempTextArea.select();
+            tempTextArea.setSelectionRange(0, 99999); // For mobile devices
+
+            try {
+                document.execCommand('copy');
+                copyButton.textContent = 'Copied!';
+                showMessage('Prompt copied to clipboard!', 'success');
+                setTimeout(() => {
+                    copyButton.textContent = 'Copy';
+                }, 2000);
+            } catch (err) {
+                console.error('Failed to copy text: ', err);
+                showMessage('Failed to copy text.', 'error');
+            }
+
+            document.body.removeChild(tempTextArea);
+        }
+
+        /**
+         * Displays a message to the user
+         * @param {string} message - The text to display
+         * @param {'success' | 'error' | 'clear'} type - The type of message
+         */
+        // --- THIS IS THE CORRECTED FUNCTION ---
+        function showMessage(message, type) {
+            messageBox.classList.remove('hidden', 'bg-red-500', 'bg-green-500', 'text-white');
+
+            if (type === 'clear') {
+                messageBox.classList.add('hidden');
+                messageBox.textContent = '';
+                return;
+            }
+
+            if (type === 'error') {
+                messageBox.classList.add('bg-red-500', 'text-white');
+            } else if (type === 'success') {
+                messageBox.classList.add('bg-green-500', 'text-white');
+            }
+
+            messageBox.textContent = message;
+        }
+
+        // We can remove the fetchWithBackoff function as it's not needed for localhost
+    </script>
+</body>
+
+</html>
