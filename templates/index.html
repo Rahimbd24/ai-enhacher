@@ -112,8 +112,9 @@
         const messageBox = document.getElementById('messageBox');
 
         // --- API Configuration ---
-        // We call our OWN Python backend server, not Google
-        const apiUrl = `http://localhost:5000/enhance`;
+        // *** THIS IS THE CORRECTED LINE ***
+        // It now calls the relative path, not localhost
+        const apiUrl = `/enhance`;
 
         // --- Event Listeners ---
         enhanceButton.addEventListener('click', handleEnhanceClick);
@@ -235,7 +236,6 @@
          * @param {string} message - The text to display
          * @param {'success' | 'error' | 'clear'} type - The type of message
          */
-        // --- THIS IS THE CORRECTED FUNCTION ---
         function showMessage(message, type) {
             messageBox.classList.remove('hidden', 'bg-red-500', 'bg-green-500', 'text-white');
 
@@ -253,8 +253,6 @@
 
             messageBox.textContent = message;
         }
-
-        // We can remove the fetchWithBackoff function as it's not needed for localhost
     </script>
 </body>
 
